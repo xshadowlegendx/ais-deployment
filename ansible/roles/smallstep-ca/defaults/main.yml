@@ -1,0 +1,24 @@
+---
+smallstep_ca_host: ca.acme.org
+smallstep_ca_dns_names:
+  - ca.acme.org
+
+smallstep_ca_common_name: Acme Org - Root CA
+smallstep_ca_organization: Acme Org
+smallstep_ca_cert_subject: Acme Org - Root CA
+
+smallstep_ca_int_cert_subject: Acme Org - Intermediate CA
+
+smallstep_ca_ocsp_responder_common_name: Acme Org - OCSP Responder
+
+smallstep_dns_allowed_subjects:
+  - '*.acme.org'
+
+smallstep_ca_initial_admin_jwk_public_key:
+  use: sig
+  kty: OKP
+  kid: 96QIjy63fpalczCI7XJrUzJzJsMbNSEhHmFCxRihJUg
+  crv: Ed25519
+  alg: EdDSA
+  x: 7LWDGgtaW1w3hk_d-EiUCslCF9bKEZSNT9ItmbzwdAE
+smallstep_ca_initial_admin_jwk_encrypted_private_key: eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJjdHkiOiJqd2sranNvbiIsImVuYyI6IkEyNTZHQ00iLCJwMmMiOjYwMDAwMCwicDJzIjoiVkl1ZncxNGg2TktwVUNBNWNfQTB2USJ9.-ypD2tNSw_eB6g2eYuVSZJ02iFHm13YiGPCGaHtYfEkqrX6CPpNVJQ.eu_tIc2XpguAkVUu.QhrO-aslcz-OKKShdF_BRlcscF1T225HxG4155bzUX5CDupL0fz7ESgnfBQyOejRqdLbI1pYuAlx6LpXd0a_5EYmxGQZl9QvLNEtkdR9Fu2urWLm32bIG-Ni6aDzS1f72jAy_VW8aIZPgMgjvyP-nE4q0g3wimMkoJvOQz0gdXOqtYu6Yy175EGSX9y9QJaBjirsezj7Ec5N7hrE-bJG9QcP_Hpzf9eYv-WydHIzBfm6xZvG_dMjRierpwjC-A4aP2LoNDRzjFHh67rm9ck0.Z65M9GyhgRp7ruKZBOzRpw

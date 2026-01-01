@@ -1,0 +1,199 @@
+---
+- name: Get machine arch
+  ansible.builtin.command: arch
+  changed_when: false
+  register: machine_arch
+
+- name: Install podman
+  ansible.builtin.apt:
+    name: podman
+    update_cache: true
+    lock_timeout: 256
+  delay: 4
+  retries: 4
+  when: ansible_os_family == 'Debian'
+
+- name: Install podman
+  ansible.builtin.dnf:
+    name: podman
+  when: ansible_os_family == 'RedHat'
+
+- name: Install step cli
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: Add smallstep repo
+      ansible.builtin.copy:
+        dest: /etc/yum.repos.d/smallstep.repo
+        mode: "0644"
+        content: |
+          [smallstep]
+          name=Smallstep
+          baseurl=https://packages.smallstep.com/stable/fedora/
+          enabled=1
+          repo_gpgcheck=0
+          gpgcheck=1
+          gpgkey=https://packages.smallstep.com/keys/smallstep-0x889B19391F774443.gpg
+
+    - name: Install step cli
+      ansible.builtin.dnf:
+        name: step-cli
+
+- name: Install step cli
+  when: ansible_os_family == 'Debian'
+  block:
+    - name: Add smallstep repo
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/smallstep.list
+        mode: "0644"
+        content: |
+          deb [signed-by=/etc/apt/trusted.gpg.d/smallstep.asc] https://packages.smallstep.com/stable/debian debs main
+
+    - name: Add smallstep public key
+      ansible.builtin.get_url:
+        url: https://packages.smallstep.com/keys/apt/repo-signing-key.gpg
+        dest: /etc/apt/trusted.gpg.d/smallstep.asc
+        mode: "0644"
+
+    - name: Install step cli
+      ansible.builtin.apt:
+        name: step-cli
+        update_cache: true
+        lock_timeout: 256
+      delay: 4
+      retries: 4
+
+- name: Setup postgres deps for xroad
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: Disable built-in postgresql module
+      ansible.builtin.command: dnf -qy module disable postgresql
+      changed_when: true
+
+    - name: Add new postgresql gpg key
+      ansible.builtin.rpm_key:
+        key: https://ftp.postgresql.org/pub/repos/yum/keys/PGDG-RPM-GPG-KEY-RHEL
+        state: present
+
+    - name: Add postgresql repo
+      ansible.builtin.dnf:
+        name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-{{ machine_arch.stdout }}/pgdg-redhat-repo-latest.noarch.rpm
+
+    - name: Install postgresql18-client
+      ansible.builtin.dnf:
+        name: postgresql18-contrib
+
+- name: Setup postgres deps for xroad
+  when: ansible_os_family == 'Debian'
+  block:
+    - name: Install postgresql common
+      ansible.builtin.apt:
+        name: postgresql-common
+        lock_timeout: 256
+      delay: 4
+      retries: 4
+
+    - name: Add pgdg repo
+      ansible.builtin.shell: |
+        echo -e '\n' | /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+      args:
+        creates: /etc/apt/sources.list.d/pgdg.list
+
+    - name: Install postgresql18-client
+      ansible.builtin.apt:
+        name: postgresql-client-18
+        lock_timeout: 256
+        update_cache: true
+      delay: 4
+      retries: 4
+
+- name: Ensure xroad pg data directories exists
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0750"
+    state: directory
+    recurse: true
+  with_items:
+    - /var/lib/xroad/pgwal
+    - /var/lib/xroad/pgdata
+
+- name: Install xroad postgres
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/xroad-pg.container
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=postgresql for xroad
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/postgres:18-alpine
+      ContainerName=xroad-pg
+      PublishPort=127.0.0.1:5432:5432
+      Volume=/var/lib/xroad/pgwal:/pgwal:U,rw,Z
+      Volume=/var/lib/xroad/pgdata:/pgdata:U,rw,Z
+      Environment=POSTGRES_DB=xroad
+      Environment=POSTGRES_USER=xroadpg
+      Environment=POSTGRES_PASSWORD=xroadpg
+      Environment=PGDATA=/pgdata
+      Environment=POSTGRES_INITDB_WALDIR=/pgwal
+
+      [Service]
+      Restart=on-failure
+
+- name: Ensure xroad postgres enabled and started
+  ansible.builtin.systemd_service:
+    name: xroad-pg
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Ensure xroad config exists
+  ansible.builtin.copy:
+    dest: /etc/xroad.properties
+    mode: "0700"
+    content: |
+      postgres.connection.user = xroadpg
+      postgres.connection.password = xroadpg
+
+- name: Add xroad repo
+  when: ansible_os_family == 'Debian'
+  block:
+    - name: Add xroad repo gpg key
+      ansible.builtin.apt_key:
+        # url: https://artifactory.niis.org/api/gpg/key/public
+        url: https://x-road.eu/gpg/key/public/niis-artifactory-public.gpg
+        state: present
+
+    - name: Add xroad repo
+      ansible.builtin.apt_repository:
+        # repo: deb https://artifactory.niis.org/xroad-release-deb noble-current main
+        repo: deb https://www.nic.funet.fi/pub/csc/x-road/client/7.6.2/debian noble-current main
+        state: present
+
+- name: Add xroad repo
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: Install epel-release
+      ansible.builtin.dnf:
+        name: epel-release
+
+    - name: Add xroad repo gpg key
+      ansible.builtin.rpm_key:
+        key: https://artifactory.niis.org/api/gpg/key/public
+        state: present
+
+    - name: Add xroad repo
+      ansible.builtin.yum_repository:
+        name: xroad
+        description: X-Road Repo
+        baseurl: https://artifactory.niis.org/artifactory/xroad-release-rpm/rhel/$releasever/7.7.0/
+
+- name: Setup central server
+  when: xroad_setup_as == 'central-server'
+  ansible.builtin.import_tasks: central-server.yml
+
+- name: Setup security server
+  when: xroad_setup_as == 'security-server'
+  ansible.builtin.import_tasks: security-server.yml

@@ -1,0 +1,11 @@
+{
+  {% raw %}
+  "sans": {{ toJson .SANs }},
+  "subject": {{ toJson .Insecure.CR.Subject }},
+  "keyUsage": {{ toJson .Insecure.CR.KeyUsage }},
+{{- end }}
+  {% endraw %}
+  "ocspServer": "http://{{ smallstep_ca_host }}/ocsp",
+  "crlDistributionPoints": "http://{{ smallstep_ca_host }}/1.0/crl",
+  "issuingCertificateURL": "http://{{ smallstep_ca_host }}/intermediates.pem"
+}

@@ -1,0 +1,8 @@
+---
+- name: Setup smallstep ca
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - smallstep-ca

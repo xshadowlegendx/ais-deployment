@@ -1,0 +1,9 @@
+{
+  {% raw %}
+  "sans": {{ toJson .SANs }},
+  "subject": {{ toJson .Subject }},
+  "keyUsage": ["digitalSignature"],
+  {% endraw %}
+  "extKeyUsage": ["OCSPSigning"],
+  "publicKeyAlgorithm": "Ed25519"
+}

@@ -1,0 +1,107 @@
+---
+- name: Install xroad security server components
+  ansible.builtin.dnf:
+    name:
+      - xroad-securityserver
+      - xroad-database-remote
+  when: ansible_os_family == 'RedHat'
+
+- name: Install xroad security server components
+  ansible.builtin.apt:
+    name:
+      - xroad-securityserver
+      - xroad-database-remote
+    lock_timeout: 256
+    update_cache: true
+  delay: 4
+  retries: 4
+  when: ansible_os_family == 'Debian'
+
+- name: Ensure xroad config exists
+  ansible.builtin.copy:
+    dest: /etc/xroad.properties
+    mode: "0700"
+    content: |
+      postgres.connection.user = xroadpg
+      postgres.connection.password = xroadpg
+
+- name: Enable acme http01 challenge
+  community.general.ini_file:
+    path: /etc/xroad/conf.d/local.ini
+    section: proxy-ui-api
+    option: acme-challenge-port-enabled
+    mode: "0644"
+    owner: xroad
+    group: xroad
+    value: true
+  notify: Restart xroad-proxy
+
+- name: Configure acme
+  ansible.builtin.copy:
+    dest: /etc/xroad/conf.d/acme.yml
+    mode: "0640"
+    owner: xroad
+    group: xroad
+    content: |
+      eab-credentials:
+        '{{ xroad_ss_ca_name }}':
+          mac-key-base64-encoded: true
+          members:
+            '{{ xroad_ss_instance_id }}:{{ xroad_ss_member_class }}:{{ xroad_ss_member_code }}':
+              auth-kid: key_0
+              auth-mac-key: YXV0aGVudGljYXRpb25zZWNyZXRtYWNrZXk=
+              auth-kid: key_1
+              sign-mac-key: c2VjcmV0X21hY19rZXlfZm9yX3NpZ25pbmc=
+
+      account-keystore-password: acmep12Password1234
+  notify: Restart xroad-proxy
+
+- name: Configure mail for acme
+  ansible.builtin.copy:
+    dest: /etc/xroad/conf.d/mail.yml
+    mode: "0640"
+    owner: xroad
+    group: xroad
+    content: |
+      contacts:
+        '{{ xroad_ss_instance_id }}:{{ xroad_ss_member_class }}:{{ xroad_ss_member_code }}': {{ xroad_ss_acme_email }}
+  notify: Restart xroad-proxy
+
+- name: Disable messagelog addon
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/xroad-addon-messagelog
+    mode: "0644"
+    line: ENABLE_MESSAGELOG=false
+    create: true
+  notify: Restart xroad-proxy
+
+- name: Configure trusted ca
+  ansible.builtin.command: step ca bootstrap -f --install --ca-url {{ xroad_step_ca_url }} --fingerprint {{ xroad_step_ca_root_fingerprint }}
+  when: xroad_ca_type == 'step-ca'
+  changed_when: true
+  notify: Restart xroad-proxy
+
+- name: Configure xroad admin user
+  block:
+    - name: Ensure groups exist
+      ansible.builtin.group:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - xroad-security-officer
+        - xroad-registration-officer
+        - xroad-service-administrator
+        - xroad-system-administrator
+        - xroad-securityserver-observer
+
+    - name: Add xroad admin user to group
+      ansible.builtin.user:
+        name: "{{ xroad_ss_admin_username }}"
+        groups: xroad-security-officer,xroad-registration-officer,xroad-service-administrator,xroad-system-administrator,xroad-securityserver-observer
+        append: true
+
+- name: Ensure xroad-proxy started and enabled
+  ansible.builtin.service:
+    name: xroad-proxy
+    state: started
+    enabled: true

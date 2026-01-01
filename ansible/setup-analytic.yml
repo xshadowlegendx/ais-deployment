@@ -1,0 +1,8 @@
+---
+- name: Setup analytic
+  hosts: analytic
+  become: true
+  gather_facts: true
+
+  roles:
+    - analytic

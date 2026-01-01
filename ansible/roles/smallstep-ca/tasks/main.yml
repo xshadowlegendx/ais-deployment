@@ -1,0 +1,396 @@
+---
+- name: Add smallstep repo
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/smallstep.repo
+    content: |
+      [smallstep]
+      name=Smallstep
+      baseurl=https://packages.smallstep.com/stable/fedora/
+      enabled=1
+      repo_gpgcheck=0
+      gpgcheck=1
+      gpgkey=https://packages.smallstep.com/keys/smallstep-0x889B19391F774443.gpg
+    mode: "0644"
+
+- name: Install step-cli
+  ansible.builtin.dnf:
+    name: step-cli
+
+- name: Install centos rpm gpg key
+  ansible.builtin.rpm_key:
+    key: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256
+    state: present
+
+- name: Install podman
+  ansible.builtin.dnf:
+    name: https://mirror.stream.centos.org/9-stream/AppStream/{{ ansible_architecture }}/os/Packages/podman-5.4.0-5.el9.{{ ansible_architecture }}.rpm
+
+- name: Ensure custom podman config dir exists
+  ansible.builtin.file:
+    path: /etc/containers/containers.conf.d
+    state: directory
+    mode: "0774"
+
+- name: Configure container log rotation
+  ansible.builtin.copy:
+    dest: /etc/containers/containers.conf.d/00-logs.conf
+    mode: "0774"
+    content: |
+      [containers]
+      log_size_max = 65536
+
+- name: Ensure /opt/caddy exists
+  ansible.builtin.file:
+    path: /opt/caddy/data
+    state: directory
+    recurse: true
+    mode: "0640"
+
+- name: Copy Caddyfile
+  ansible.builtin.copy:
+    mode: "0750"
+    dest: /opt/caddy/Caddyfile
+    content: |
+      http://{{ smallstep_ca_host }}, https://{{ smallstep_ca_host }} {
+        tls {
+          issuer acme {
+            dir https://step-ca/acme/{{ 'tls' | hash('blake2b') | truncate(32, true, '') }}/directory
+            trusted_roots /etc/caddy/certs/root-ca.crt
+            disable_tlsalpn_challenge
+          }
+        }
+
+        handle /ocsp {
+          reverse_proxy http://step-ca-simple-ocsp-responder:8090
+        }
+
+        reverse_proxy https://step-ca {
+          transport http {
+            tls_trust_pool file {
+              pem_file /etc/caddy/certs/root-ca.crt
+            }
+          }
+        }
+      }
+
+- name: Install caddy server
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/caddy.container
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=Caddy Server
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/caddy:2.10-alpine
+      ContainerName=caddy
+      Network=step.network
+      PublishPort=80:80
+      PublishPort=443:443
+      Volume=/opt/caddy/data:/data:U,rw,Z
+      Volume=/opt/caddy/Caddyfile:/etc/caddy/Caddyfile:U,ro,Z
+      Volume=/opt/step-ca/certs:/etc/caddy/certs:U,ro,z
+
+      [Service]
+      Restart=always
+
+- name: Install step ca postgres
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/step-ca-pg.container
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=Step CA postgres
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/postgres:16-alpine
+      ContainerName=step-ca-pg
+      Network=step.network
+      Volume=/opt/step-ca/db/pgwal:/pgwal:U,rw,Z
+      Volume=/opt/step-ca/db/pgdata:/pgdata:U,rw,Z
+      Environment=POSTGRES_DB=stepca
+      Environment=POSTGRES_USER=stepca
+      Environment=POSTGRES_PASSWORD=stepca
+      Environment=PGDATA=/pgdata
+      Environment=POSTGRES_INITDB_WALDIR=/pgwal
+
+      [Service]
+      Restart=on-failure
+
+- name: Install smallstep ca
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/step-ca.container
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=Smallstep CA
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/smallstep/step-ca:0.28.3
+      ContainerName=step-ca
+      Network=step.network
+      Volume=/opt/step-ca/ca.json:/home/step/config/ca.json:ro,z
+      Volume=/opt/step-ca/templates:/home/step/templates:ro,z
+      Volume=/opt/step-ca/certs:/home/step/certs:U,ro,z
+      Volume=/opt/step-ca/secrets:/home/step/secrets:U,ro,z
+      Environment=DOCKER_STEPCA_INIT_PASSWORD={{ lookup('community.general.random_string', length=32, special=false) }}
+
+      [Service]
+      Restart=always
+  notify: Restart step-ca
+
+- name: Install step ca simple ocsp responder
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/step-ca-simple-ocsp-responder.container
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=Simple step ca ocsp responder
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/shadowlegend/step-ca-simple-ocsp-responder:latest
+      ContainerName=step-ca-simple-ocsp-responder
+      PublishPort=127.0.0.1:8090:8090
+      Network=step.network
+      Volume=/opt/step-ca/certs:/etc/caddy/certs:U,ro,z
+      Volume=/opt/step-ca/secrets/ocsp-responder.key:/ocsp-responder.key:U,ro,z
+      Environment=OCSP_RESPONDER_STEP_CA_DB_POSTGRES_CONN_STR=postgresql://stepca:stepca@step-ca-pg:5432/stepca
+      Environment=OCSP_RESPONDER_ISSUER_CERT_PATH=/etc/caddy/certs/root-ca.crt
+      Environment=OCSP_RESPONDER_OCSP_PRIVATE_KEY_PATH=/ocsp-responder.key
+      Environment=OCSP_RESPONDER_OCSP_CERT_PATH=/etc/caddy/certs/ocsp-responder.crt
+
+      [Service]
+      Restart=always
+
+- name: Create step network
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/step.network
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=Step network
+
+      [Network]
+      NetworkName=step
+
+      [Install]
+      WantedBy=default.target
+
+- name: Ensure step-ca dir exists
+  ansible.builtin.file:
+    path: '{{ item }}'
+    mode: "0755"
+    state: directory
+    recurse: true
+  with_items:
+    - /opt/step-ca/db/pgwal
+    - /opt/step-ca/db/pgdata
+    - /opt/step-ca/tmp
+    - /opt/step-ca/certs
+    - /opt/step-ca/secrets
+    - /opt/step-ca/templates/x509
+
+- name: Copy some step-ca configs
+  ansible.builtin.template:
+    src: "{{ item.tmpl }}"
+    dest: "{{ item.dest }}"
+    mode: "0755"
+  with_items:
+    - tmpl: ca.json.j2
+      dest: /opt/step-ca/ca.json
+    - tmpl: leaf-default.tpl.j2
+      dest: /opt/step-ca/templates/x509/leaf-default.tpl
+    - tmpl: intermediate-ca.tpl.j2
+      dest: /opt/step-ca/templates/x509/intermediate-ca.tpl
+    - tmpl: ocsp.tpl.j2
+      dest: /opt/step-ca/templates/x509/ocsp.tpl
+    - tmpl: ocsp.tpl.j2
+      dest: /opt/step-ca/templates/x509/xroad.tpl
+  notify: Restart step-ca
+
+- name: Generate random password for root private key
+  ansible.builtin.command: openssl rand -hex -out /opt/step-ca/root-pkey-pw 32
+  args:
+    creates: /opt/step-ca/root-pkey-pw
+
+- name: Generate root private key if not exists
+  # ansible.builtin.shell: openssl genpkey -algorithm Ed25519 -out /opt/step-ca/root-pkey -pass pass:$(cat /opt/step-ca/root-pkey-pw)
+  ansible.builtin.shell: openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:prime256v1 -out /opt/step-ca/root-pkey -pass pass:$(cat /opt/step-ca/root-pkey-pw)
+  args:
+    creates: /opt/step-ca/root-pkey
+
+- name: Copy root ca template
+  ansible.builtin.copy:
+    dest: /opt/step-ca/templates/x509/root-ca.tpl
+    content: |
+      {
+        "subject": {
+          "commonName": {{ '{{ toJson .Subject.CommonName }}' | string }},
+          "organization": "{{ smallstep_ca_organization }}"
+        },
+        "issuer": {
+          "commonName": "{{ smallstep_ca_common_name }}"
+        },
+        "keyUsage": ["certSign", "crlSign"],
+        "basicConstraints": {
+          "isCA": true,
+          "maxPathLen": 2
+        }
+      }
+    mode: "0644"
+
+- name: Generate initial root certificate
+  ansible.builtin.shell:
+    cmd: |
+      step certificate create\
+        -f\
+        --not-after=175200h\
+        --template /opt/step-ca/templates/x509/root-ca.tpl\
+        --key /opt/step-ca/root-pkey\
+        --password-file /opt/step-ca/root-pkey-pw\
+        '{{ smallstep_ca_cert_subject }}' /opt/step-ca/certs/root-ca.crt
+
+      cp /opt/step-ca/certs/root-ca.crt /opt/step-ca/certs/old-root-ca.crt
+  args:
+    creates: /opt/step-ca/certs/root-ca.crt
+
+- name: Generate root renew script
+  ansible.builtin.copy:
+    dest: /opt/step-ca/root-renew.sh
+    mode: "0550"
+    content: |
+      #!/bin/bash
+
+      cp /opt/step-ca/certs/root-ca.crt /opt/step-ca/certs/old-root-ca.crt
+
+      step certificate create\
+        -f\
+        --not-after=175200h\
+        --template /opt/step-ca/templates/x509/root-ca.tpl\
+        --key /opt/step-ca/root-pkey\
+        --password-file /opt/step-ca/root-pkey-pw\
+        '{{ smallstep_ca_cert_subject }}' /opt/step-ca/certs/root-ca.crt
+
+- name: Generate intermediate ca script
+  ansible.builtin.copy:
+    dest: /opt/step-ca/int-ca-gen.sh
+    mode: "0550"
+    content: |
+      #!/bin/bash
+
+      openssl rand -hex 32 > /opt/step-ca/secrets/password
+
+      step certificate create\
+        -f\
+        --csr\
+        --kty EC\
+        --crv P-256\
+        --password-file /opt/step-ca/secrets/password\
+        --template /opt/step-ca/templates/x509/intermediate-ca.tpl\
+        '{{ smallstep_ca_int_cert_subject }}'\
+        /opt/step-ca/tmp/int-csr.pem /opt/step-ca/secrets/intermediate-ca.key
+
+      step certificate sign\
+        --not-after=87600h\
+        --password-file /opt/step-ca/root-pkey-pw\
+        --template /opt/step-ca/templates/x509/intermediate-ca.tpl\
+        /opt/step-ca/tmp/int-csr.pem /opt/step-ca/certs/root-ca.crt /opt/step-ca/root-pkey > /opt/step-ca/certs/intermediate-ca.crt
+
+- name: Generate initial intermediate ca
+  ansible.builtin.command: /opt/step-ca/int-ca-gen.sh
+  args:
+    creates: /opt/step-ca/certs/intermediate-ca.crt
+
+- name: Set root renew schedule
+  ansible.builtin.cron:
+    name: renew root ca
+    minute: "0"
+    hour: "0"
+    day: "*/4"
+    job: /opt/step-ca/root-renew.sh && systemctl restart step-ca && systemctl restart caddy
+
+- name: Set int ca renew schedule
+  ansible.builtin.cron:
+    name: renew intermediate ca
+    minute: "0"
+    hour: "0"
+    day: "*/2"
+    job: /opt/step-ca/int-ca-gen.sh && systemctl restart step-ca
+
+- name: Generate ocsp responder private key
+  ansible.builtin.command: openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:prime256v1 -out /opt/step-ca/secrets/ocsp-responder.key
+  args:
+    creates: /opt/step-ca/secrets/ocsp-responder.key
+
+- name: Create ocsp cert generate script
+  ansible.builtin.copy:
+    dest: /opt/step-ca/ocsp-responder-gen.sh
+    mode: "0550"
+    content: |
+      #!/bin/bash
+
+      step certificate create\
+        -f\
+        --insecure\
+        --no-password\
+        --not-after=70080h\
+        --key=/opt/step-ca/secrets/ocsp-responder.key\
+        --ca=/opt/step-ca/certs/intermediate-ca.crt\
+        --ca-key=/opt/step-ca/secrets/intermediate-ca.key\
+        --ca-password-file=/opt/step-ca/secrets/password\
+        --template=/opt/step-ca/templates/x509/ocsp.tpl\
+        "{{ smallstep_ca_ocsp_responder_common_name }}" /opt/step-ca/certs/ocsp-responder.crt
+
+- name: Generate initial ocsp responder certificate
+  ansible.builtin.command: /opt/step-ca/ocsp-responder-gen.sh
+  args:
+    creates: /opt/step-ca/certs/ocsp-responder.crt
+
+- name: Set ocsp renew schedule
+  ansible.builtin.cron:
+    name: renew ocsp
+    minute: "0"
+    hour: "0"
+    day: "*/2"
+    job: /opt/step-ca/ocsp-responder-gen.sh && systemctl restart step-ca-simple-ocsp-responder
+
+- name: Ensure all services started and enabled
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  with_items:
+    - step-ca-pg
+    - step-ca
+    - step-ca-simple-ocsp-responder
+    - caddy
+
+- name: Copy manual cert sign script
+  ansible.builtin.copy:
+    dest: /opt/step-ca/cert-sign.sh
+    mode: "0750"
+    content: |
+      #/bin/bash
+
+      step certificate sign $1\
+        --template /opt/step-ca/templates/x509/$2.tpl\
+        --password-file /opt/step-ca/secrets/password\
+        /opt/step-ca/certs/intermediate-ca.crt\
+        /opt/step-ca/secrets/intermediate-ca.key > signed.crt
+
+      openssl x509 -in signed.crt -outform der -out signed.der
+
+      curl -XPOST http://localhost:8090/cert/$(step certificate inspect signed.crt --format json | jq -r .serial_number) --data-binary @signed.der

@@ -1,0 +1,8 @@
+---
+- name: Setup keycloak
+  hosts: keycloak
+  become: true
+  gather_facts: true
+
+  roles:
+    - keycloak

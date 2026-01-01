@@ -1,0 +1,36 @@
+---
+- name: Configure answer to central server initial install
+  ansible.builtin.debconf:
+    name: xroad-common
+    question: "{{ item.question }}"
+    vtype: text
+    value: "{{ item.value }}"
+  with_items:
+    - question: xroad-common/username
+      value: root
+    - question: xroad-common/admin-subject
+      value: /CN="{{ xroad_cs_domain }}"
+    - question: xroad-common/admin-altsubject
+      value: IP:{{ xroad_cs_ip }},DNS:{{ xroad_cs_domain }}
+    - question: xroad-common/service-subject
+      value: /CN="{{ xroad_cs_domain }}"
+    - question: xroad-common/service-altsubject
+      value: IP:{{ xroad_cs_ip }},DNS:{{ xroad_cs_domain }}
+    - question: xroad-common/global-conf-subject
+      value: /CN="{{ xroad_cs_domain }}"
+    - question: xroad-common/global-conf-altsubject
+      value: IP:{{ xroad_cs_ip }},DNS:{{ xroad_cs_domain }}
+    - question: xroad-common/skip-cs-db-migrations
+      value: 'false'
+
+- name: Install xroad components
+  ansible.builtin.apt:
+    name:
+      - xroad-centralserver
+      - xroad-database-remote
+    lock_timeout: 256
+    update_cache: true
+  delay: 4
+  retries: 4
+  environment:
+    DEBIAN_FRONTEND: noninteractive

@@ -1,0 +1,8 @@
+---
+- name: Setup xroad
+  hosts: xroad
+  become: true
+  gather_facts: true
+
+  roles:
+    - xroad

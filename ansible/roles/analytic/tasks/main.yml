@@ -1,0 +1,117 @@
+---
+- name: Install podman
+  ansible.builtin.dnf:
+    name: podman
+  when: ansible_os_family == 'RedHat'
+
+- name: Install podman
+  ansible.builtin.apt:
+    name: podman
+  when: ansible_os_family == 'Debian'
+
+- name: Ensure metabase and clickhouse data dir exists
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0750"
+    recurse: true
+    state: directory
+  with_items:
+    - /var/lib/metabase/pgwal
+    - /var/lib/metabase/pgdata
+    - /var/lib/clickhouse/data
+    - /var/lib/clickhouse/logs
+
+- name: Create metabase network
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/metabase.network
+    mode: "0640"
+    content: |
+      [Network]
+      NetworkName=metabase
+
+- name: Install postgers for metabase
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/metabase-pg.container
+    mode: "0640"
+    content: |
+      [Unit]
+      Description=postgresql for metabase
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/postgres:18-alpine
+      ContainerName=metabase-pg
+      Network=metabase.network
+      Volume=/var/lib/metabase/pgwal:/pgwal:U,rw,Z
+      Volume=/var/lib/metabase/pgdata:/pgdata:U,rw,Z
+      Environment=POSTGRES_DB=metabase
+      Environment=POSTGRES_USER=metabase
+      Environment=POSTGRES_PASSWORD=metabase123
+      Environment=PGDATA=/pgdata
+      Environment=POSTGRES_INITDB_WALDIR=/pgwal
+
+      [Service]
+      Restart=on-failure
+
+- name: Install metabase
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/metabase.container
+    mode: "0640"
+    content: |
+      [Unit]
+      Description=metabase
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/metabase/metabase:v0.57.x
+      ContainerName=metabase
+      Network=metabase.network
+      PublishPort=127.0.0.1:3000:3000
+      Environment=MB_DB_TYPE=postgres
+      Environment=MB_DB_DBNAME=metabase
+      Environment=MB_DB_PORT=5432
+      Environment=MB_DB_USER=metabase
+      Environment=MB_DB_PASS=metabase123
+      Environment=MB_DB_HOST=metabase-pg
+
+      [Service]
+      Restart=on-failure
+
+- name: Install clickhouse
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/clickhouse.container
+    mode: "0640"
+    content: |
+      [Unit]
+      Description=clickhouse
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/clickhouse/clickhouse-server:25.11-alpine
+      ContainerName=clickhouse
+      Network=metabase.network
+      Volume=/var/lib/clickhouse/data:/var/lib/clickhouse:U,rw,Z
+      Volume=/var/lib/clickhouse/logs:/var/log/clickhouse-server:U,rw,Z
+      Environment=CLICKHOUSE_DB=metabase
+      Environment=CLICKHOUSE_USER=metabase
+      Environment=CLICKHOUSE_PASSWORD=metabase123
+      Environment=CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+
+      [Service]
+      Restart=on-failure
+
+- name: Ensure all services started
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    daemon_reload: true
+  with_items:
+    - clickhouse
+    - metabase
+    - metabase-pg

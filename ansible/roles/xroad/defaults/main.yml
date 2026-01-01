@@ -1,0 +1,19 @@
+---
+xroad_setup_as: security-server
+
+xroad_org: acme.org
+
+xroad_cs_ip: 172.16.4.2
+xroad_cs_domain: cs.xroad.local
+
+xroad_ss_ca_name: Acme Org - Demo CA
+xroad_ss_acme_email: admin@ss.xroad.local
+xroad_ss_instance_id: acme.org
+xroad_ss_member_class: internal
+xroad_ss_member_code: ss.xroad.local
+
+xroad_ca_type: step-ca
+xroad_step_ca_url: https://ca.xroad.local
+xroad_step_ca_root_fingerprint: 8020aed069e9023407e185212179bf9e903d41071e5a664fd6062811720e5262
+
+xroad_ss_admin_username: root

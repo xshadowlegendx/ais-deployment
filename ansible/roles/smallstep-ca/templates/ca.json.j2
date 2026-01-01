@@ -1,0 +1,96 @@
+{
+  "root": [
+    "/home/step/certs/root-ca.crt",
+    "/home/step/certs/old-root-ca.crt"
+  ],
+  "federatedRoots": [],
+  "crt": "/home/step/certs/intermediate-ca.crt",
+  "key": "/home/step/secrets/intermediate-ca.key",
+  "address": ":443",
+  "insecureAddress": ":80",
+  "db": {
+    "type": "postgresql",
+    "dataSource": "postgresql://stepca:stepca@step-ca-pg:5432/stepca"
+  },
+  "dnsNames": {{ (smallstep_ca_dns_names + ["step-ca", "127.0.0.1"]) | to_json }},
+  "logger": {
+    "format": "json"
+  },
+  "crl": {
+    "enabled": true,
+    "cacheDuration": "16m",
+    "generateOnRevoke": true,
+    "idpURL": "http://{{ smallstep_ca_host }}/1.0/crl"
+  },
+  "tls": {
+    "cipherSuites": [
+      "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"
+    ],
+    "minVersion": 1.3,
+    "maxVersion": 1.3,
+    "renegotiation": false
+  },
+  "authority": {
+    "enableAdmin": true,
+    "claims": {
+      "minTLSCertDuration": "96h",
+      "maxTLSCertDuration": "175200h",
+      "defaultTLSCertDuration": "720h",
+      "disableRenewal": false,
+      "allowRenewalAfterExpiry": false
+    },
+    "policy": {
+      "x509": {
+        "allow": {
+          "dns": {{ smallstep_dns_allowed_subjects | to_json }}
+        }
+      }
+    },
+    "provisioners": [
+      {
+        "type": "JWK",
+        "name": "admin@acme.org",
+        "key": {{ smallstep_ca_initial_admin_jwk_public_key | to_json }},
+        "encryptedKey": {{ smallstep_ca_initial_admin_jwk_encrypted_private_key | to_json }}
+      },
+      {
+        "type": "ACME",
+        "name": "{{ 'tls' | hash('blake2b') | truncate(32, true, '') }}",
+        "forceCN": true,
+        "requireEAB": false,
+        "caaIdentities": ["{{ smallstep_ca_host }}"],
+        "claims": {
+          "defaultTLSCertDuration": "96h"
+        },
+        "challenges": [
+          "http-01",
+          "dns-01",
+          "tls-alpn-01"
+        ],
+        "options": {
+          "x509": {
+            "templateFile": "/home/step/templates/x509/leaf-default.tpl"
+          }
+        }
+      },
+      {
+        "type": "ACME",
+        "name": "{{ 'xroad' | hash('blake2b') | truncate(32, true, '') }}",
+        "forceCN": true,
+        "requireEAB": false,
+        "caaIdentities": ["{{ smallstep_ca_host }}"],
+        "claims": {
+          "defaultTLSCertDuration": "8760h"
+        },
+        "challenges": [
+          "http-01"
+        ],
+        "options": {
+          "x509": {
+            "templateFile": "/home/step/templates/x509/xroad.tpl"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  {% raw %}
+  "subject": {
+    "commonName": {{toJson .Subject.CommonName }},
+    "country": {{ toJson .Insecure.User.country }},
+    "organizationalUnit": {{ toJson .Insecure.User.organizationUnit }}
+  },
+  {% endraw %}
+  "keyUsage": ["certSign", "crlSign"],
+  "ocspServer": "http://{{ smallstep_ca_host }}/ocsp",
+  "crlDistributionPoints": "http://{{ smallstep_ca_host }}/1.0/crl",
+  "basicConstraints": {
+    "isCA": true,
+    "maxPathLen": 1
+  }
+}

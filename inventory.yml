@@ -1,0 +1,36 @@
+---
+all:
+  vars:
+    xroad_org: acme.org
+    xroad_ss_ca_name: XRoad Demo Root CA
+    xroad_ca_type: step-ca
+    xroad_step_ca_url: https://ca.xroad.demo.local
+    xroad_step_ca_root_fingerprint: 94446dc5ae5ac39bb95bdb8a45a19d57069066686a1e15157daf91a89306df66
+
+xroad:
+  hosts:
+    central_server:
+      ansible_host: 127.0.0.1
+      xroad_setup_as: central-server
+      xroad_cs_ip: 127.0.0.1
+      xroad_cs_domain: cs.xroad.demo.local
+    security_server:
+      ansible_host: 127.0.0.1
+      xroad_setup_as: security-server
+      xroad_ss_instance_id: acme.org
+      xroad_ss_member_class: internal
+      xroad_ss_member_code: ss.xroad.demo.local
+
+step-ca:
+  hosts: {}
+    # main: {}
+
+analytic:
+  hosts:
+    anal:
+      ansible_host: 127.0.0.1
+
+keycloak:
+  hosts:
+    kc:
+      ansible_host: 127.0.0.1
