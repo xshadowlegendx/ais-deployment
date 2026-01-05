@@ -33,7 +33,7 @@
     mode: "0644"
     owner: xroad
     group: xroad
-    value: true
+    value: 'true'
   notify: Restart xroad-proxy
 
 - name: Configure acme
@@ -44,14 +44,15 @@
     group: xroad
     content: |
       eab-credentials:
-        '{{ xroad_ss_ca_name }}':
-          mac-key-base64-encoded: true
-          members:
-            '{{ xroad_ss_instance_id }}:{{ xroad_ss_member_class }}:{{ xroad_ss_member_code }}':
-              auth-kid: key_0
-              auth-mac-key: YXV0aGVudGljYXRpb25zZWNyZXRtYWNrZXk=
-              auth-kid: key_1
-              sign-mac-key: c2VjcmV0X21hY19rZXlfZm9yX3NpZ25pbmc=
+        certificate-authorities:
+          '{{ xroad_ss_ca_name }}':
+            mac-key-base64-encoded: true
+            members:
+              '{{ xroad_ss_instance_id }}:{{ xroad_ss_member_class }}:{{ xroad_ss_member_code }}':
+                auth-kid: key_0
+                auth-mac-key: YXV0aGVudGljYXRpb25zZWNyZXRtYWNrZXk=
+                auth-kid: key_1
+                sign-mac-key: c2VjcmV0X21hY19rZXlfZm9yX3NpZ25pbmc=
 
       account-keystore-password: acmep12Password1234
   notify: Restart xroad-proxy
