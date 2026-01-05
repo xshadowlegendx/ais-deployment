@@ -386,6 +386,7 @@
       #/bin/bash
 
       step certificate sign $1\
+        --not-after=17520h\
         --template /opt/step-ca/templates/x509/$2.tpl\
         --password-file /opt/step-ca/secrets/password\
         /opt/step-ca/certs/intermediate-ca.crt\
