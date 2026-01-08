@@ -29,3 +29,9 @@
     - create and configure any services
     - approve the security server membership on central server
     - allow any clients on any services
+
+### rest interface
+headers:
+    x-road-client: [instance]/[classX]/[memberX]/[subSystemX]
+
+url: [proto]//:[securityServer:[port]]/r1/[instance]/[classY]/[memberY]/[subSystemY]/[service]/*
