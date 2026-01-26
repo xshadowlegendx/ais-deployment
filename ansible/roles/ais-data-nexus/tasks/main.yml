@@ -1,0 +1,78 @@
+---
+- name: Install podman
+  ansible.builtin.dnf:
+    name: podman
+  when: ansible_os_family == 'RedHat'
+
+- name: Install podman
+  ansible.builtin.apt:
+    name: podman
+  when: ansible_os_family == 'Debian'
+
+- name: Ensure ais data nexus nats data dir exists
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0750"
+    recurse: true
+    state: directory
+  with_items:
+    - /var/lib/ais-data-nexus/nats
+
+- name: Create ais data nexus network
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/ais-data-nexus.network
+    mode: "0640"
+    content: |
+      [Network]
+      NetworkName=ais-data-nexus
+
+- name: Install ais data nexus nats
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/ais-data-nexus-nats.container
+    mode: "0640"
+    content: |
+      [Unit]
+      Description=ais data nexus nats
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/nats:2.12-alpine
+      Network=ais-data-nexus.network
+      ContainerName=ais-data-nexus-nats
+      Exec=-js -sd /data
+      Volume=/var/lib/ais-data-nexus/nats:/data:rw,Z,U
+
+      [Service]
+      Restart=on-failure
+
+- name: Install ais data nexus
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/ais-data-nexus-nats.container
+    mode: "0640"
+    content: |
+      [Unit]
+      Description=ais data nexus
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=ghcr.io/xshadowlegendx/ais-data-nexus:0.1.0
+      Network=ais-data-nexus.network
+      ContainerName=ais-data-nexus
+      PublishPort=127.0.0.1:5629:5629
+      Environment=NATS_URL=nats://ais-data-nexus-nats:4222
+
+      [Service]
+      Restart=on-failure
+
+- name: Ensure all services started
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    daemon_reload: true
+  with_items:
+    - ais-data-nexus-nats
+    - ais-data-nexus

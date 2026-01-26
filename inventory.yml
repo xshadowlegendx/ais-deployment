@@ -21,9 +21,15 @@ xroad:
       xroad_ss_member_class: internal
       xroad_ss_member_code: ss.xroad.demo.local
 
+ais-data-nexus:
+  hosts:
+    main:
+      ansible_host: 127.0.0.1
+
 step-ca:
-  hosts: {}
-    # main: {}
+  hosts:
+    main:
+      ansible_host: 127.0.0.1
 
 analytic:
   hosts:
