@@ -197,3 +197,9 @@
 - name: Setup security server
   when: xroad_setup_as == 'security-server'
   ansible.builtin.import_tasks: security-server.yml
+
+- name: Configure xroad pin autologin
+  ansible.builtin.copy:
+    dest: /etc/xroad/autologin
+    mode: "0640"
+    content: "{{ xroad_autologin | join('\n') }}"

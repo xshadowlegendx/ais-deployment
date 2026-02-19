@@ -76,6 +76,13 @@
     create: true
   notify: Restart xroad-proxy
 
+- name: Disable messagelog
+  ansible.builtin.command: mv /usr/share/xroad/jlib/addon/proxy/messagelog.conf /usr/share/xroad/jlib/addon/proxy/messagelog.conf.disabled
+  args:
+    removes: /usr/share/xroad/jlib/addon/proxy/messagelog.conf
+    creates: /usr/share/xroad/jlib/addon/proxy/messagelog.conf.disabled
+  notify: Restart xroad-proxy
+
 - name: Configure trusted ca
   ansible.builtin.command: step ca bootstrap -f --install --ca-url {{ xroad_step_ca_url }} --fingerprint {{ xroad_step_ca_root_fingerprint }}
   when: xroad_ca_type == 'step-ca'

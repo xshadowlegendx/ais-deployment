@@ -17,3 +17,6 @@ xroad_step_ca_url: https://ca.xroad.local
 xroad_step_ca_root_fingerprint: 8020aed069e9023407e185212179bf9e903d41071e5a664fd6062811720e5262
 
 xroad_ss_admin_username: root
+
+xroad_autologin:
+  - 0:abc123
