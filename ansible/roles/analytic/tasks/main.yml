@@ -81,6 +81,32 @@
       [Service]
       Restart=on-failure
 
+- name: Ensure clickhouse config dir exists
+  ansible.builtin.file:
+    path: /etc/clickhouse-server/config.d
+    state: directory
+    recurse: true
+
+- name: Add clickhouse trace log disk config
+  ansible.builtin.copy:
+    dest: /etc/clickhouse-server/config.d/trace-log.xml
+    mode: "0640"
+    content: |
+      <clickhouse>
+        <max_table_size_to_drop>60G</max_table_size_to_drop>
+        <trace_log>
+          <database>system</database>
+          <table>trace_log</table>
+          <partition_by>toYYYYMM(event_date)</partition_by>
+          <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+          <max_size_rows>1048576</max_size_rows>
+          <reserved_size_rows>8192</reserved_size_rows>
+          <buffer_size_rows_flush_threshold>524288</buffer_size_rows_flush_threshold>
+          <flush_on_crash>false</flush_on_crash>
+          <symbolize>false</symbolize>
+        </trace_log>
+      </clickhouse>
+
 - name: Install clickhouse
   ansible.builtin.copy:
     dest: /etc/containers/systemd/clickhouse.container
@@ -98,6 +124,7 @@
       Network=metabase.network
       Volume=/var/lib/clickhouse/data:/var/lib/clickhouse:U,rw,Z
       Volume=/var/lib/clickhouse/logs:/var/log/clickhouse-server:U,rw,Z
+      Volume=/etc/clickhouse-server/config.d/trace-log.xml:/etc/clickhouse-server/config.d/trace-log.xml:ro,z
       Environment=CLICKHOUSE_DB=metabase
       Environment=CLICKHOUSE_USER=metabase
       Environment=CLICKHOUSE_PASSWORD=metabase123
