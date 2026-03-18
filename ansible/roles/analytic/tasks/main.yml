@@ -94,7 +94,7 @@
     content: |
       <clickhouse>
         <max_table_size_to_drop>60G</max_table_size_to_drop>
-        <trace_log>
+        <trace_log replace="1">
           <database>system</database>
           <table>trace_log</table>
           <partition_by>toYYYYMM(event_date)</partition_by>
@@ -104,6 +104,7 @@
           <buffer_size_rows_flush_threshold>524288</buffer_size_rows_flush_threshold>
           <flush_on_crash>false</flush_on_crash>
           <symbolize>false</symbolize>
+          <engine>Engine = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + interval 4 day</engine>
         </trace_log>
       </clickhouse>
 
