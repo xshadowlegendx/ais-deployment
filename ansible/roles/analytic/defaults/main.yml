@@ -1,0 +1,26 @@
+---
+analytic_nats_host: 192.168.123.123
+
+analytic_ais_data_nexus_processors:
+  - name: weather-indexer
+    nats_stream: weather
+    envs:
+      - name: CH_DB
+        value: weather
+      - name: CLICKHOUSE_USER
+        value: ch
+      - name: CLICKHOUSE_PASSWORD
+        value: ch123
+      - name: CLICKHOUSE_HOST
+        value: ch.acme.org
+  - name: camagri-indexer
+    nats_stream: camagri
+    envs:
+      - name: CH_DB
+        value: camagri
+      - name: CLICKHOUSE_USER
+        value: ch
+      - name: CLICKHOUSE_PASSWORD
+        value: ch123
+      - name: CLICKHOUSE_HOST
+        value: ch.acme.org
