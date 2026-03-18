@@ -42,6 +42,7 @@
       Network=ais-data-nexus.network
       ContainerName=ais-data-nexus-nats
       Exec=-js -sd /data
+      PublishPort=4222:4222
       Volume=/var/lib/ais-data-nexus/nats:/data:rw,Z,U
 
       [Service]
