@@ -64,6 +64,7 @@
       Network=ais-data-nexus.network
       ContainerName=ais-data-nexus
       PublishPort=127.0.0.1:5629:5629
+      Environment=RUST_LOG=INFO
       Environment=NATS_URL=nats://ais-data-nexus-nats:4222
 
       [Service]
