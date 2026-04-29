@@ -1,6 +1,14 @@
 ---
 analytic_nats_host: 192.168.123.123
 
+analytic_superset_secret_key: 00000000-0000-0000-0000-000000000000
+analytic_superset_oidc_client_id: superset
+analytic_superset_oidc_client_secret: abcdef
+analytic_superset_oidc_jwks_uri: http://keycloak.acme.org/realms/abc/protocol/openid-connect/certs
+analytic_superset_oidc_api_base_url: http://keycloak.acme.org/realms/abc
+analytic_superset_oidc_access_token_url: http://keycloak.acme.org/realms/abc/protocol/openid-connect/token
+analytic_superset_oidc_authorize_url: http://keycloak.acme.org/realms/abc/protocol/openid-connect/auth
+
 analytic_ais_data_nexus_processors:
   - name: weather-indexer
     nats_stream: weather

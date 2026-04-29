@@ -9,74 +9,95 @@
     name: podman
   when: ansible_os_family == 'Debian'
 
-- name: Ensure metabase and clickhouse data dir exists
+- name: Ensure superset and clickhouse data dir exists
   ansible.builtin.file:
     path: "{{ item }}"
     mode: "0750"
     recurse: true
     state: directory
   with_items:
-    - /var/lib/metabase/pgwal
-    - /var/lib/metabase/pgdata
+    - /etc/superset
+    - /var/lib/superset/data
+    - /var/lib/superset/pgwal
+    - /var/lib/superset/pgdata
     - /var/lib/clickhouse/data
     - /var/lib/clickhouse/logs
 
-- name: Create metabase network
+- name: Create superset network
   ansible.builtin.copy:
-    dest: /etc/containers/systemd/metabase.network
+    dest: /etc/containers/systemd/superset.network
     mode: "0640"
     content: |
       [Network]
-      NetworkName=metabase
+      NetworkName=superset
 
-- name: Install postgers for metabase
+- name: Install postgers for superset
   ansible.builtin.copy:
-    dest: /etc/containers/systemd/metabase-pg.container
+    dest: /etc/containers/systemd/superset-pg.container
     mode: "0640"
     content: |
       [Unit]
-      Description=postgresql for metabase
+      Description=postgresql for superset
 
       [Install]
       WantedBy=default.target
 
       [Container]
       Image=docker.io/postgres:18-alpine
-      ContainerName=metabase-pg
-      Network=metabase.network
-      Volume=/var/lib/metabase/pgwal:/pgwal:U,rw,Z
-      Volume=/var/lib/metabase/pgdata:/pgdata:U,rw,Z
-      Environment=POSTGRES_DB=metabase
-      Environment=POSTGRES_USER=metabase
-      Environment=POSTGRES_PASSWORD=metabase123
+      ContainerName=superset-pg
+      Network=superset.network
+      Volume=/var/lib/superset/pgwal:/pgwal:U,rw,Z
+      Volume=/var/lib/superset/pgdata:/pgdata:U,rw,Z
+      Environment=POSTGRES_DB=superset
+      Environment=POSTGRES_USER=superset
+      Environment=POSTGRES_PASSWORD=superset123
       Environment=PGDATA=/pgdata
       Environment=POSTGRES_INITDB_WALDIR=/pgwal
 
       [Service]
       Restart=on-failure
 
-- name: Install metabase
+- name: Copy superset config
   ansible.builtin.copy:
-    dest: /etc/containers/systemd/metabase.container
+    src: superset_config.py
+    dest: /etc/superset/
+    mode: "0640"
+
+- name: Install superset
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/superset.container
     mode: "0640"
     content: |
       [Unit]
-      Description=metabase
+      Description=superset
 
       [Install]
       WantedBy=default.target
 
       [Container]
-      Image=docker.io/metabase/metabase:v0.57.x
-      ContainerName=metabase
-      Network=metabase.network
-      PublishPort=127.0.0.1:3000:3000
-      Environment=MB_DB_TYPE=postgres
-      Environment=MB_DB_DBNAME=metabase
-      Environment=MB_DB_PORT=5432
-      Environment=MB_DB_USER=metabase
-      Environment=MB_DB_PASS=metabase123
-      Environment=MB_DB_HOST=metabase-pg
+      Image=docker.io/shadowlegend/superset:6.0.0
+      ContainerName=superset
+      Network=superset.network
+      PublishPort=127.0.0.1:8088:8088
+      Volume=/etc/superset/superset_config.py:/superset_config.py
+      Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
+      Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
+      Environment=DATABASE_DB=superset
+      Environment=REDIS_HOST=dragonfly
+      Environment=PGHOST=superset-pg
+      Environment=PGUSER=superset
+      Environment=PGPASSWORD=superset123
+      Environment=SUPERSET_CONFIG_PATH=/superset_config.py
+      Environment=DEV_MODE=false
+      Environment=FLASK_DEBUG=false
+      Environment=SUPERSET_LOAD_EXAMPLES=no
+      Environment=SUPERSET_SECRET_KEY={{ analytic_superset_secret_key }}
+      Environment=SSO_OIDC_CLIENT_ID={{ analytic_superset_oidc_client_id }}
+      Environment=SSO_OIDC_CLIENT_SECRET={{ analytic_superset_oidc_client_secret }}
+      Environment=SSO_OIDC_JWKS_URI={{ analytic_superset_oidc_jwks_uri }}
+      Environment=SSO_OIDC_API_BASE_URL={{ analytic_superset_oidc_api_base_url }}
+      Environment=SSO_OIDC_ACCESS_TOKEN_URL={{ analytic_superset_oidc_access_token_url }}
+      Environment=SSO_OIDC_AUTHORIZE_URL={{ analytic_superset_oidc_authorize_url }}
 
       [Service]
       Restart=on-failure
@@ -122,13 +143,13 @@
       [Container]
       Image=docker.io/clickhouse/clickhouse-server:25.11-alpine
       ContainerName=clickhouse
-      Network=metabase.network
+      Network=superset.network
       Volume=/var/lib/clickhouse/data:/var/lib/clickhouse:U,rw,Z
       Volume=/var/lib/clickhouse/logs:/var/log/clickhouse-server:U,rw,Z
       Volume=/etc/clickhouse-server/config.d/trace-log.xml:/etc/clickhouse-server/config.d/trace-log.xml:ro,z
-      Environment=CLICKHOUSE_DB=metabase
-      Environment=CLICKHOUSE_USER=metabase
-      Environment=CLICKHOUSE_PASSWORD=metabase123
+      Environment=CLICKHOUSE_DB=superset
+      Environment=CLICKHOUSE_USER=superset
+      Environment=CLICKHOUSE_PASSWORD=superset123
       Environment=CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
 
       [Service]
@@ -141,8 +162,8 @@
     daemon_reload: true
   with_items:
     - clickhouse
-    - metabase
-    - metabase-pg
+    - superset
+    - superset-pg
 
 - name: Install processors
   ansible.builtin.template:
