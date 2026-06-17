@@ -75,11 +75,11 @@
       WantedBy=default.target
 
       [Container]
-      Image=docker.io/shadowlegend/superset:6.0.0
+      Image=ghcr.io/ysall123/agriculture-superset:latest
       ContainerName=superset
       Network=superset.network
       PublishPort=127.0.0.1:8088:8088
-      Volume=/etc/superset/superset_config.py:/superset_config.py
+      # Volume=/etc/superset/superset_config.py:/superset_config.py
       Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
       Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
       Environment=DATABASE_DB=superset
@@ -88,16 +88,18 @@
       Environment=PGUSER=superset
       Environment=PGPASSWORD=superset123
       Environment=SUPERSET_CONFIG_PATH=/superset_config.py
+      Environment=SUPERSET__SQLALCHEMY_DATABASE_URI=postgresql+psycopg2:///superset
       Environment=DEV_MODE=false
       Environment=FLASK_DEBUG=false
       Environment=SUPERSET_LOAD_EXAMPLES=no
       Environment=SUPERSET_SECRET_KEY={{ analytic_superset_secret_key }}
-      Environment=SSO_OIDC_CLIENT_ID={{ analytic_superset_oidc_client_id }}
-      Environment=SSO_OIDC_CLIENT_SECRET={{ analytic_superset_oidc_client_secret }}
-      Environment=SSO_OIDC_JWKS_URI={{ analytic_superset_oidc_jwks_uri }}
-      Environment=SSO_OIDC_API_BASE_URL={{ analytic_superset_oidc_api_base_url }}
-      Environment=SSO_OIDC_ACCESS_TOKEN_URL={{ analytic_superset_oidc_access_token_url }}
-      Environment=SSO_OIDC_AUTHORIZE_URL={{ analytic_superset_oidc_authorize_url }}
+      Environment=KEYCLOAK_CLIENT_ID={{ analytic_superset_oidc_client_id }}
+      Environment=KEYCLOAK_CLIENT_SECRET={{ analytic_superset_oidc_client_secret }}
+      Environment=KEYCLOAK_REALM_BASE_URL={{ analytic_superset_oidc_api_base_url }}
+      Environment=KEYCLOAK_OPENID_CONFIG_URL={{ analytic_superset_oidc_discovery_url }}
+      Environment=KEYCLOAK_JWKS_URI={{ analytic_superset_oidc_jwks_uri }}
+      Environment=KEYCLOAK_FORCE_PROMPT_LOGIN=true
+      Environment=AUTH_USER_REGISTRATION_ROLE=Gamma
 
       [Service]
       Restart=on-failure
@@ -110,7 +112,7 @@
 
 - name: Add clickhouse trace log disk config
   ansible.builtin.copy:
-    dest: /etc/clickhouse-server/config.d/trace-log.xml
+    dest: /etc/clickhouse-server/config.d/system-log-rotation.xml
     mode: "0640"
     content: |
       <clickhouse>
@@ -127,6 +129,29 @@
           <symbolize>false</symbolize>
           <engine>Engine = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + interval 4 day</engine>
         </trace_log>
+
+        <text_log replace="1">
+          <database>system</database>
+          <table>text_log</table>
+          <partition_by>toYYYYMM(event_date)</partition_by>
+          <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+          <max_size_rows>1048576</max_size_rows>
+          <reserved_size_rows>8192</reserved_size_rows>
+          <buffer_size_rows_flush_threshold>524288</buffer_size_rows_flush_threshold>
+          <engine>Engine = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + interval 4 day</engine>
+        </text_log>
+
+        <metric_log replace="1">
+          <database>system</database>
+          <table>metric_log</table>
+          <partition_by>toYYYYMM(event_date)</partition_by>
+          <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+          <collect_interval_milliseconds>1000</collect_interval_milliseconds>
+          <max_size_rows>1048576</max_size_rows>
+          <reserved_size_rows>8192</reserved_size_rows>
+          <buffer_size_rows_flush_threshold>524288</buffer_size_rows_flush_threshold>
+          <engine>Engine = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + interval 4 day</engine>
+        </metric_log>
       </clickhouse>
 
 - name: Install clickhouse
