@@ -1,0 +1,8 @@
+---
+- name: Setup ais data nexus
+  hosts: ais_data_nexus
+  become: true
+  gather_facts: true
+
+  roles:
+    - ais-data-nexus

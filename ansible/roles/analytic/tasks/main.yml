@@ -17,6 +17,7 @@
     state: directory
   with_items:
     - /etc/superset
+    - /var/lib/valkey
     - /var/lib/superset/data
     - /var/lib/superset/pgwal
     - /var/lib/superset/pgdata
@@ -57,6 +58,26 @@
       [Service]
       Restart=on-failure
 
+- name: Install valkey for superset
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/valkey.container
+    mode: "0640"
+    content: |
+      [Unit]
+      Description=valkey
+
+      [Install]
+      WantedBy=default.target
+
+      [Container]
+      Image=docker.io/valkey/valkey:9-alpine
+      ContainerName=superset-valkey
+      Network=superset.network
+      Volume=/var/lib/valkey:/data:U,rw,Z
+
+      [Service]
+      Restart=on-failure
+
 - name: Copy superset config
   ansible.builtin.copy:
     src: superset_config.py
@@ -83,7 +104,7 @@
       Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
       Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
       Environment=DATABASE_DB=superset
-      Environment=REDIS_HOST=dragonfly
+      Environment=REDIS_HOST=superset-valkey
       Environment=PGHOST=superset-pg
       Environment=PGUSER=superset
       Environment=PGPASSWORD=superset123
@@ -117,7 +138,7 @@
     content: |
       <clickhouse>
         <max_table_size_to_drop>60G</max_table_size_to_drop>
-        <trace_log replace="1">
+        <trace_log replace="1" remove="remove">
           <database>system</database>
           <table>trace_log</table>
           <partition_by>toYYYYMM(event_date)</partition_by>
@@ -130,7 +151,7 @@
           <engine>Engine = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + interval 4 day</engine>
         </trace_log>
 
-        <text_log replace="1">
+        <text_log replace="1" remove="remove">
           <database>system</database>
           <table>text_log</table>
           <partition_by>toYYYYMM(event_date)</partition_by>
@@ -187,8 +208,9 @@
     daemon_reload: true
   with_items:
     - clickhouse
-    - superset
     - superset-pg
+    - superset-valkey
+    - superset
 
 - name: Install processors
   ansible.builtin.template:
