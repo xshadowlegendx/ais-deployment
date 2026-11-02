@@ -9,6 +9,33 @@
     name: podman
   when: ansible_os_family == 'Debian'
 
+- name: Create data vg
+  community.general.lvg:
+    vg: data
+    pvs: "{{ item }}"
+    state: present
+  loop: "{{ keycloak_lvm_disks }}"
+
+- name: Create lvs
+  community.general.lvol:
+    vg: data
+    lv: "{{ item.lv }}"
+    size: "{{ item.size }}"
+    state: present
+  with_items:
+    - lv: keycloak_pgdata
+      size: "{{ keycloak_pg_data_size }}"
+    - lv: keycloak_pgwal
+      size: "{{ keycloak_pg_wal_data_size }}"
+
+- name: Format lvs
+  community.general.filesystem:
+    dev: /dev/data/{{ item }}
+    fstype: xfs
+  with_items:
+    - keycloak_pgdata
+    - keycloak_pgwal
+
 - name: Ensure keycloak data dir exists
   ansible.builtin.file:
     path: "{{ item }}"
@@ -18,6 +45,19 @@
   with_items:
     - /var/lib/keycloak/pgwal
     - /var/lib/keycloak/pgdata
+
+- name: Ensure mount point exists
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: xfs
+    opts: defaults
+    state: mounted
+  with_items:
+    - path: /var/lib/keycloak/pgwal
+      src: /dev/data/keycloak_pgwal
+    - path: /var/lib/keycloak/pgdata
+      src: /dev/data/keycloak_pgdata
 
 - name: Create keycloak network
   ansible.builtin.copy:
@@ -69,7 +109,7 @@
       ContainerName=keycloak
       Exec=start
       Network=keycloak.network
-      PublishPort=127.0.0.1:8080:8080
+      PublishPort=8080:8080
       Environment=KC_HTTP_ENABLED=true
       Environment=KC_HOSTNAME_STRICT=false
       Environment=KC_PROXY_PROTOCOL_ENABLED=true

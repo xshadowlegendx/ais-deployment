@@ -1,0 +1,5 @@
+keycloak_lvm_disks:
+  - /dev/sdb
+
+keycloak_pg_data_size: 8G
+keycloak_pg_wal_data_size: 4G
