@@ -151,7 +151,7 @@
       ContainerName=superset
       Network=superset.network
       PublishPort=127.0.0.1:8088:8088
-      Volume=/etc/superset/superset_config.py:/superset_config.py
+      Volume=/etc/superset/superset_config.py:/superset_config.py:U,ro,Z
       Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
       Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
       Environment=DATABASE_DB=superset
