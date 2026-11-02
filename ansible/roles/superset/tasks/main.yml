@@ -1,3 +1,50 @@
+- name: Install podman
+  ansible.builtin.apt:
+    name: podman
+    update_cache: true
+    lock_timeout: 256
+  delay: 4
+  retries: 4
+  when: ansible_os_family == 'Debian'
+
+- name: Install podman
+  ansible.builtin.dnf:
+    name: podman
+  when: ansible_os_family == 'RedHat'
+
+- name: Create data vg
+  community.general.lvg:
+    vg: data
+    pvs: "{{ item }}"
+    state: present
+  loop: "{{ analytic_superset_lvm_disks }}"
+
+- name: Create lvs
+  community.general.lvol:
+    vg: data
+    lv: "{{ item.lv }}"
+    size: "{{ item.size }}"
+    state: present
+  with_items:
+    - lv: superset
+      size: "{{ analytic_superset_data_size }}"
+    - lv: superset_valkey
+      size: "{{ analytic_superset_valkey_data_size }}"
+    - lv: superset_pgdata
+      size: "{{ analytic_superset_pg_data_size }}"
+    - lv: superset_pgwal
+      size: "{{ analytic_superset_pg_wal_data_size }}"
+
+- name: Format lvs
+  community.general.filesystem:
+    dev: /dev/data/{{ item }}
+    fstype: xfs
+  with_items:
+    - superset
+    - superset_valkey
+    - superset_pgdata
+    - superset_pgwal
+
 - name: Ensure superset data dir exists
   ansible.builtin.file:
     path: "{{ item }}"
@@ -6,10 +53,27 @@
     state: directory
   with_items:
     - /etc/superset
-    - /var/lib/valkey
+    - /var/lib/superset/valkey
     - /var/lib/superset/data
     - /var/lib/superset/pgwal
     - /var/lib/superset/pgdata
+
+- name: Ensure mount point exists
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: xfs
+    opts: defaults
+    state: mounted
+  with_items:
+    - path: /var/lib/superset/data
+      src: /dev/data/superset
+    - path:  /var/lib/superset/valkey
+      src: /dev/data/superset_valkey
+    - path: /var/lib/superset/pgwal
+      src: /dev/data/superset_pgwal
+    - path: /var/lib/superset/pgdata
+      src: /dev/data/superset_pgdata
 
 - name: Create superset network
   ansible.builtin.copy:
@@ -47,7 +111,7 @@
 
 - name: Install valkey for superset
   ansible.builtin.copy:
-    dest: /etc/containers/systemd/valkey.container
+    dest: /etc/containers/systemd/superset-valkey.container
     mode: "0640"
     content: |
       [Unit]
@@ -60,7 +124,7 @@
       Image=docker.io/valkey/valkey:9-alpine
       ContainerName=superset-valkey
       Network=superset.network
-      Volume=/var/lib/valkey:/data:U,rw,Z
+      Volume=/var/lib/superset/valkey:/data:U,rw,Z
 
       [Service]
       Restart=on-failure
@@ -87,7 +151,7 @@
       ContainerName=superset
       Network=superset.network
       PublishPort=127.0.0.1:8088:8088
-      # Volume=/etc/superset/superset_config.py:/superset_config.py
+      Volume=/etc/superset/superset_config.py:/superset_config.py
       Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
       Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
       Environment=DATABASE_DB=superset
