@@ -41,7 +41,7 @@ keycloak:
     kc:
       ansible_host: 127.0.0.1
 
-supserset:
+superset:
   hosts:
     main:
       ansible_host: 127.0.0.1
