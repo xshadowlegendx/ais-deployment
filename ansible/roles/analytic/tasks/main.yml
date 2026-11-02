@@ -9,121 +9,15 @@
     name: podman
   when: ansible_os_family == 'Debian'
 
-- name: Ensure superset and clickhouse data dir exists
+- name: Ensure clickhouse data dir exists
   ansible.builtin.file:
     path: "{{ item }}"
     mode: "0750"
     recurse: true
     state: directory
   with_items:
-    - /etc/superset
-    - /var/lib/valkey
-    - /var/lib/superset/data
-    - /var/lib/superset/pgwal
-    - /var/lib/superset/pgdata
     - /var/lib/clickhouse/data
     - /var/lib/clickhouse/logs
-
-- name: Create superset network
-  ansible.builtin.copy:
-    dest: /etc/containers/systemd/superset.network
-    mode: "0640"
-    content: |
-      [Network]
-      NetworkName=superset
-
-- name: Install postgers for superset
-  ansible.builtin.copy:
-    dest: /etc/containers/systemd/superset-pg.container
-    mode: "0640"
-    content: |
-      [Unit]
-      Description=postgresql for superset
-
-      [Install]
-      WantedBy=default.target
-
-      [Container]
-      Image=docker.io/postgres:18-alpine
-      ContainerName=superset-pg
-      Network=superset.network
-      Volume=/var/lib/superset/pgwal:/pgwal:U,rw,Z
-      Volume=/var/lib/superset/pgdata:/pgdata:U,rw,Z
-      Environment=POSTGRES_DB=superset
-      Environment=POSTGRES_USER=superset
-      Environment=POSTGRES_PASSWORD=superset123
-      Environment=PGDATA=/pgdata
-      Environment=POSTGRES_INITDB_WALDIR=/pgwal
-
-      [Service]
-      Restart=on-failure
-
-- name: Install valkey for superset
-  ansible.builtin.copy:
-    dest: /etc/containers/systemd/valkey.container
-    mode: "0640"
-    content: |
-      [Unit]
-      Description=valkey
-
-      [Install]
-      WantedBy=default.target
-
-      [Container]
-      Image=docker.io/valkey/valkey:9-alpine
-      ContainerName=superset-valkey
-      Network=superset.network
-      Volume=/var/lib/valkey:/data:U,rw,Z
-
-      [Service]
-      Restart=on-failure
-
-- name: Copy superset config
-  ansible.builtin.copy:
-    src: superset_config.py
-    dest: /etc/superset/
-    mode: "0640"
-
-- name: Install superset
-  ansible.builtin.copy:
-    dest: /etc/containers/systemd/superset.container
-    mode: "0640"
-    content: |
-      [Unit]
-      Description=superset
-
-      [Install]
-      WantedBy=default.target
-
-      [Container]
-      Image=ghcr.io/ysall123/agriculture-superset:latest
-      ContainerName=superset
-      Network=superset.network
-      PublishPort=127.0.0.1:8088:8088
-      # Volume=/etc/superset/superset_config.py:/superset_config.py
-      Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
-      Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
-      Environment=DATABASE_DB=superset
-      Environment=REDIS_HOST=superset-valkey
-      Environment=PGHOST=superset-pg
-      Environment=PGUSER=superset
-      Environment=PGPASSWORD=superset123
-      Environment=SUPERSET_CONFIG_PATH=/superset_config.py
-      Environment=SUPERSET__SQLALCHEMY_DATABASE_URI=postgresql+psycopg2:///superset
-      Environment=DEV_MODE=false
-      Environment=FLASK_DEBUG=false
-      Environment=SUPERSET_LOAD_EXAMPLES=no
-      Environment=SUPERSET_SECRET_KEY={{ analytic_superset_secret_key }}
-      Environment=KEYCLOAK_CLIENT_ID={{ analytic_superset_oidc_client_id }}
-      Environment=KEYCLOAK_CLIENT_SECRET={{ analytic_superset_oidc_client_secret }}
-      Environment=KEYCLOAK_REALM_BASE_URL={{ analytic_superset_oidc_api_base_url }}
-      Environment=KEYCLOAK_OPENID_CONFIG_URL={{ analytic_superset_oidc_discovery_url }}
-      Environment=KEYCLOAK_JWKS_URI={{ analytic_superset_oidc_jwks_uri }}
-      Environment=KEYCLOAK_FORCE_PROMPT_LOGIN=true
-      Environment=AUTH_USER_REGISTRATION_ROLE=Gamma
-
-      [Service]
-      Restart=on-failure
 
 - name: Ensure clickhouse config dir exists
   ansible.builtin.file:
@@ -189,13 +83,13 @@
       [Container]
       Image=docker.io/clickhouse/clickhouse-server:25.11-alpine
       ContainerName=clickhouse
-      Network=superset.network
+      PublishPort=8123:8123
       Volume=/var/lib/clickhouse/data:/var/lib/clickhouse:U,rw,Z
       Volume=/var/lib/clickhouse/logs:/var/log/clickhouse-server:U,rw,Z
       Volume=/etc/clickhouse-server/config.d/trace-log.xml:/etc/clickhouse-server/config.d/trace-log.xml:ro,z
-      Environment=CLICKHOUSE_DB=superset
-      Environment=CLICKHOUSE_USER=superset
-      Environment=CLICKHOUSE_PASSWORD=superset123
+      Environment=CLICKHOUSE_DB=ais
+      Environment=CLICKHOUSE_USER=ais
+      Environment=CLICKHOUSE_PASSWORD=ais123
       Environment=CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
 
       [Service]
@@ -208,9 +102,6 @@
     daemon_reload: true
   with_items:
     - clickhouse
-    - superset-pg
-    - superset-valkey
-    - superset
 
 - name: Install processors
   ansible.builtin.template:

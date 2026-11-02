@@ -1,29 +1,64 @@
 ---
-- name: Add smallstep repo
-  ansible.builtin.copy:
-    dest: /etc/yum.repos.d/smallstep.repo
-    content: |
-      [smallstep]
-      name=Smallstep
-      baseurl=https://packages.smallstep.com/stable/fedora/
-      enabled=1
-      repo_gpgcheck=0
-      gpgcheck=1
-      gpgkey=https://packages.smallstep.com/keys/smallstep-0x889B19391F774443.gpg
-    mode: "0644"
+- name: Install step-cli and podman for debian based
+  when: ansible_os_family == 'Debian'
+  block:
+    - name: Install podman
+      ansible.builtin.apt:
+        name: podman
+        update_cache: true
+        lock_timeout: 256
+      delay: 4
+      retries: 4
 
-- name: Install step-cli
-  ansible.builtin.dnf:
-    name: step-cli
+    - name: Add smallstep repo
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/smallstep.list
+        mode: "0644"
+        content: |
+          deb [signed-by=/etc/apt/trusted.gpg.d/smallstep.asc] https://packages.smallstep.com/stable/debian debs main
 
-- name: Install centos rpm gpg key
-  ansible.builtin.rpm_key:
-    key: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256
-    state: present
+    - name: Add smallstep public key
+      ansible.builtin.get_url:
+        url: https://packages.smallstep.com/keys/apt/repo-signing-key.gpg
+        dest: /etc/apt/trusted.gpg.d/smallstep.asc
+        mode: "0644"
 
-- name: Install podman
-  ansible.builtin.dnf:
-    name: https://mirror.stream.centos.org/9-stream/AppStream/{{ ansible_architecture }}/os/Packages/podman-5.4.0-5.el9.{{ ansible_architecture }}.rpm
+    - name: Install step cli
+      ansible.builtin.apt:
+        name: step-cli
+        update_cache: true
+        lock_timeout: 256
+      delay: 4
+      retries: 4
+
+- name: Install step-cli and podman for redhat based
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: Add smallstep repo
+      ansible.builtin.copy:
+        dest: /etc/yum.repos.d/smallstep.repo
+        content: |
+          [smallstep]
+          name=Smallstep
+          baseurl=https://packages.smallstep.com/stable/fedora/
+          enabled=1
+          repo_gpgcheck=0
+          gpgcheck=1
+          gpgkey=https://packages.smallstep.com/keys/smallstep-0x889B19391F774443.gpg
+        mode: "0644"
+
+    - name: Install step-cli
+      ansible.builtin.dnf:
+        name: step-cli
+
+    - name: Install centos rpm gpg key
+      ansible.builtin.rpm_key:
+        key: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official-SHA256
+        state: present
+
+    - name: Install podman
+      ansible.builtin.dnf:
+        name: https://mirror.stream.centos.org/9-stream/AppStream/{{ ansible_architecture }}/os/Packages/podman-5.4.0-5.el9.{{ ansible_architecture }}.rpm
 
 - name: Ensure custom podman config dir exists
   ansible.builtin.file:

@@ -1,0 +1,8 @@
+---
+- name: Setup superset
+  hosts: superset
+  become: true
+  gather_facts: true
+
+  roles:
+    - superset
