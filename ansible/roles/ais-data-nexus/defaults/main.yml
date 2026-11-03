@@ -1,0 +1,4 @@
+ais_data_nexus_lvm_disks:
+  - /dev/sdb
+
+ais_data_nexus_nats_data_size: 1T
