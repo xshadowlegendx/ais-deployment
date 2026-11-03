@@ -5,9 +5,9 @@ Description={{ item.name }}
 WantedBy=default.target
 
 [Container]
-Image=ghcr.io/warpstreamlabs/bento:1.15
+Image=ghcr.io/warpstreamlabs/bento:1.22
 ContainerName={{ item.name }}
-Network=metabase.network
+Network=analytic.network
 {% for env in item.envs -%}
 Environment={{ env.name }}={{ env.value }}
 {% endfor -%}

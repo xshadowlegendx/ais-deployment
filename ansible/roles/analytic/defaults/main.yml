@@ -1,26 +1,27 @@
 ---
 analytic_nats_host: 192.168.123.123
 
+analytic_lvm_disks:
+  - /dev/sdb
+
+analytic_clickhouse_log_size: 256G
+analytic_clickhouse_data_size: 2T
+
 analytic_ais_data_nexus_processors:
   - name: weather-indexer
     nats_stream: weather
-    envs:
+    envs: &ch-env
       - name: CH_DB
-        value: weather
+        value: ais
       - name: CLICKHOUSE_USER
-        value: ch
+        value: ais
       - name: CLICKHOUSE_PASSWORD
-        value: ch123
+        value: ais23
       - name: CLICKHOUSE_HOST
-        value: ch.acme.org
+        value: clickhouse
   - name: camagri-indexer
     nats_stream: camagri
-    envs:
-      - name: CH_DB
-        value: camagri
-      - name: CLICKHOUSE_USER
-        value: ch
-      - name: CLICKHOUSE_PASSWORD
-        value: ch123
-      - name: CLICKHOUSE_HOST
-        value: ch.acme.org
+    envs: *ch-env
+  - name: farmer-indexer
+    nats_stream: farmer
+    envs: *ch-env
