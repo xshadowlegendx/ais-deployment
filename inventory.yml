@@ -23,12 +23,12 @@ xroad:
 
 ais_data_nexus:
   hosts:
-    main:
+    ais:
       ansible_host: 127.0.0.1
 
 step-ca:
   hosts:
-    main:
+    stepca:
       ansible_host: 127.0.0.1
 
 analytic:
@@ -43,5 +43,5 @@ keycloak:
 
 superset:
   hosts:
-    main:
+    supers:
       ansible_host: 127.0.0.1
