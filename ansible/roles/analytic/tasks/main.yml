@@ -80,7 +80,7 @@
     content: |
       <clickhouse>
         <max_table_size_to_drop>60G</max_table_size_to_drop>
-        <trace_log replace="1" remove="remove">
+        <trace_log replace="1">
           <database>system</database>
           <table>trace_log</table>
           <partition_by>toYYYYMM(event_date)</partition_by>
@@ -93,7 +93,7 @@
           <engine>Engine = MergeTree PARTITION BY event_date ORDER BY event_time TTL event_date + interval 4 day</engine>
         </trace_log>
 
-        <text_log replace="1" remove="remove">
+        <text_log replace="1">
           <database>system</database>
           <table>text_log</table>
           <partition_by>toYYYYMM(event_date)</partition_by>
@@ -135,7 +135,7 @@
       Network=analytic.network
       Volume=/var/lib/clickhouse/data:/var/lib/clickhouse:U,rw,Z
       Volume=/var/lib/clickhouse/logs:/var/log/clickhouse-server:U,rw,Z
-      Volume=/etc/clickhouse-server/config.d/system-log-rotation.xml:/etc/clickhouse-server/config.d/system-log-rotation.xml:ro,z
+      Volume=/etc/clickhouse-server/config.d/system-log-rotation.xml:/etc/clickhouse-server/config.d/system-log-rotation.xml:U,ro,z
       Environment=CLICKHOUSE_DB=ais
       Environment=CLICKHOUSE_USER=ais
       Environment=CLICKHOUSE_PASSWORD=ais123
