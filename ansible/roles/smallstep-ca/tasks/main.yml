@@ -12,15 +12,19 @@
 
     - name: Add smallstep repo
       ansible.builtin.copy:
-        dest: /etc/apt/sources.list.d/smallstep.list
+        dest: /etc/apt/sources.list.d/smallstep.sources
         mode: "0644"
         content: |
-          deb [signed-by=/etc/apt/trusted.gpg.d/smallstep.asc] https://packages.smallstep.com/stable/debian debs main
+          Types: deb
+          URIs: https://packages.smallstep.com/stable/debian
+          Suites: debs
+          Components: main
+          Signed-By: /etc/apt/keyrings/smallstep.asc
 
     - name: Add smallstep public key
       ansible.builtin.get_url:
         url: https://packages.smallstep.com/keys/apt/repo-signing-key.gpg
-        dest: /etc/apt/trusted.gpg.d/smallstep.asc
+        dest: /etc/apt/keyrings/smallstep.asc
         mode: "0644"
 
     - name: Install step cli
@@ -202,8 +206,9 @@
       Volume=/opt/step-ca/certs:/etc/caddy/certs:U,ro,z
       Volume=/opt/step-ca/secrets/ocsp-responder.key:/ocsp-responder.key:U,ro,z
       Environment=OCSP_RESPONDER_STEP_CA_DB_POSTGRES_CONN_STR=postgresql://stepca:stepca@step-ca-pg:5432/stepca
-      Environment=OCSP_RESPONDER_ISSUER_CERT_PATH=/etc/caddy/certs/root-ca.crt
-      Environment=OCSP_RESPONDER_OCSP_PRIVATE_KEY_PATH=/ocsp-responder.key
+      Environment=OCSP_RESPONDER_ROOT_CA_CERT_PATH=/etc/caddy/certs/root-ca.crt
+      Environment=OCSP_RESPONDER_INT_CA_CERT_PATH=/etc/caddy/certs/intermediate-ca.crt
+      Environment=OCSP_RESPONDER_OCSP_PRIVATE_KEY_PATH=pkcs1:/ocsp-responder.key
       Environment=OCSP_RESPONDER_OCSP_CERT_PATH=/etc/caddy/certs/ocsp-responder.crt
 
       [Service]
@@ -222,6 +227,56 @@
 
       [Install]
       WantedBy=default.target
+
+- name: Create data vg
+  community.general.lvg:
+    vg: data
+    pvs: "{{ item }}"
+    state: present
+  loop: "{{ smallstep_ca_lvm_disks }}"
+
+- name: Create lvs
+  community.general.lvol:
+    vg: data
+    lv: "{{ item.lv }}"
+    size: "{{ item.size }}"
+    state: present
+  with_items:
+    - lv: smallstep_pgdata
+      size: "{{ smallstep_ca_pg_data_size }}"
+    - lv: smallstep_pgwal
+      size: "{{ smallstep_ca_pg_wal_data_size }}"
+
+- name: Format lvs
+  community.general.filesystem:
+    dev: /dev/data/{{ item }}
+    fstype: xfs
+  with_items:
+    - smallstep_pgdata
+    - smallstep_pgwal
+
+- name: Ensure smallstep pg data dir exists
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "0750"
+    recurse: true
+    state: directory
+  with_items:
+    - /opt/step-ca/db/pgwal
+    - /opt/step-ca/db/pgdata
+
+- name: Ensure mount point exists
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: xfs
+    opts: defaults
+    state: mounted
+  with_items:
+    - path: /opt/step-ca/db/pgwal
+      src: /dev/data/smallstep_pgwal
+    - path: /opt/step-ca/db/pgdata
+      src: /dev/data/smallstep_pgdata
 
 - name: Ensure step-ca dir exists
   ansible.builtin.file:

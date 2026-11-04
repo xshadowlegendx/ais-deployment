@@ -1,6 +1,6 @@
 ---
 - name: Setup smallstep ca
-  hosts: all
+  hosts: step-ca
   become: true
   gather_facts: true
 

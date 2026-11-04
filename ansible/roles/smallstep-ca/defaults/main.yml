@@ -1,4 +1,10 @@
 ---
+smallstep_ca_lvm_disks:
+  - /dev/sdb
+
+smallstep_ca_pg_data_size: 8G
+smallstep_ca_pg_wal_data_size: 4G
+
 smallstep_ca_host: ca.acme.org
 smallstep_ca_dns_names:
   - ca.acme.org
