@@ -1,4 +1,10 @@
 ---
+xroad_lvm_disks:
+  - /dev/sdb
+
+xroad_pg_data_size: 16G
+xroad_pg_wal_data_size: 8G
+
 xroad_setup_as: security-server
 
 xroad_org: acme.org

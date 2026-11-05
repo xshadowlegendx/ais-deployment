@@ -43,15 +43,19 @@
   block:
     - name: Add smallstep repo
       ansible.builtin.copy:
-        dest: /etc/apt/sources.list.d/smallstep.list
+        dest: /etc/apt/sources.list.d/smallstep.sources
         mode: "0644"
         content: |
-          deb [signed-by=/etc/apt/trusted.gpg.d/smallstep.asc] https://packages.smallstep.com/stable/debian debs main
+          Types: deb
+          URIs: https://packages.smallstep.com/stable/debian
+          Suites: debs
+          Components: main
+          Signed-By: /etc/apt/keyrings/smallstep.asc
 
     - name: Add smallstep public key
       ansible.builtin.get_url:
         url: https://packages.smallstep.com/keys/apt/repo-signing-key.gpg
-        dest: /etc/apt/trusted.gpg.d/smallstep.asc
+        dest: /etc/apt/keyrings/smallstep.asc
         mode: "0644"
 
     - name: Install step cli
@@ -106,6 +110,33 @@
       delay: 4
       retries: 4
 
+- name: Create data vg
+  community.general.lvg:
+    vg: data
+    pvs: "{{ item }}"
+    state: present
+  loop: "{{ xroad_lvm_disks }}"
+
+- name: Create lvs
+  community.general.lvol:
+    vg: data
+    lv: "{{ item.lv }}"
+    size: "{{ item.size }}"
+    state: present
+  with_items:
+    - lv: xroad_pgdata
+      size: "{{ xroad_pg_data_size }}"
+    - lv: xroad_pgwal
+      size: "{{ xroad_pg_wal_data_size }}"
+
+- name: Format lvs
+  community.general.filesystem:
+    dev: /dev/data/{{ item }}
+    fstype: xfs
+  with_items:
+    - xroad_pgdata
+    - xroad_pgwal
+
 - name: Ensure xroad pg data directories exists
   ansible.builtin.file:
     path: "{{ item }}"
@@ -115,6 +146,34 @@
   with_items:
     - /var/lib/xroad/pgwal
     - /var/lib/xroad/pgdata
+
+- name: Ensure mount point exists
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.src }}"
+    fstype: xfs
+    opts: defaults
+    state: mounted
+  with_items:
+    - path: /var/lib/xroad/pgwal
+      src: /dev/data/xroad_pgwal
+    - path: /var/lib/xroad/pgdata
+      src: /dev/data/xroad_pgdata
+
+- name: Create xroad network
+  ansible.builtin.copy:
+    dest: /etc/containers/systemd/xroad.network
+    mode: "0700"
+    content: |
+      [Unit]
+      Description=Xroad network
+
+      [Network]
+      NetworkName=xroad
+
+      [Install]
+      WantedBy=default.target
+
 
 - name: Install xroad postgres
   ansible.builtin.copy:
@@ -130,11 +189,11 @@
       [Container]
       Image=docker.io/postgres:18-alpine
       ContainerName=xroad-pg
+      Network=xroad.network
       PublishPort=127.0.0.1:5432:5432
       Volume=/var/lib/xroad/pgwal:/pgwal:U,rw,Z
       Volume=/var/lib/xroad/pgdata:/pgdata:U,rw,Z
       Environment=POSTGRES_DB=xroad
-      Environment=POSTGRES_USER=xroadpg
       Environment=POSTGRES_PASSWORD=xroadpg
       Environment=PGDATA=/pgdata
       Environment=POSTGRES_INITDB_WALDIR=/pgwal
@@ -149,46 +208,25 @@
     enabled: true
     daemon_reload: true
 
-- name: Ensure xroad config exists
-  ansible.builtin.copy:
-    dest: /etc/xroad.properties
-    mode: "0700"
-    content: |
-      postgres.connection.user = xroadpg
-      postgres.connection.password = xroadpg
-
 - name: Add xroad repo
   when: ansible_os_family == 'Debian'
   block:
-    - name: Add xroad repo gpg key
-      ansible.builtin.apt_key:
-        # url: https://artifactory.niis.org/api/gpg/key/public
+    - name: Add X-Road public key
+      ansible.builtin.get_url:
         url: https://x-road.eu/gpg/key/public/niis-artifactory-public.gpg
-        state: present
+        dest: /usr/share/keyrings/niis-artifactory-keyring.gpg
+        mode: "0644"
+        force: true
 
-    - name: Add xroad repo
+    - name: Add X-Road repository
       ansible.builtin.apt_repository:
-        # repo: deb https://artifactory.niis.org/xroad-release-deb noble-current main
-        repo: deb https://www.nic.funet.fi/pub/csc/x-road/client/7.6.2/debian noble-current main
+        repo: >-
+          deb [signed-by=/usr/share/keyrings/niis-artifactory-keyring.gpg]
+          https://artifactory.niis.org/xroad-release-deb
+          noble-current main
+        filename: xroad
         state: present
-
-- name: Add xroad repo
-  when: ansible_os_family == 'RedHat'
-  block:
-    - name: Install epel-release
-      ansible.builtin.dnf:
-        name: epel-release
-
-    - name: Add xroad repo gpg key
-      ansible.builtin.rpm_key:
-        key: https://artifactory.niis.org/api/gpg/key/public
-        state: present
-
-    - name: Add xroad repo
-      ansible.builtin.yum_repository:
-        name: xroad
-        description: X-Road Repo
-        baseurl: https://artifactory.niis.org/artifactory/xroad-release-rpm/rhel/$releasever/7.7.0/
+        update_cache: true
 
 - name: Setup central server
   when: xroad_setup_as == 'central-server'
@@ -197,9 +235,3 @@
 - name: Setup security server
   when: xroad_setup_as == 'security-server'
   ansible.builtin.import_tasks: security-server.yml
-
-- name: Configure xroad pin autologin
-  ansible.builtin.copy:
-    dest: /etc/xroad/autologin
-    mode: "0640"
-    content: "{{ xroad_autologin | join('\n') }}"

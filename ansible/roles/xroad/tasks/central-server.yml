@@ -1,4 +1,12 @@
 ---
+- name: Ensure xroad config exists
+  ansible.builtin.copy:
+    dest: /etc/xroad.properties
+    mode: "0700"
+    content: |
+      postgres.connection.user = postgres
+      postgres.connection.password = xroadpg
+
 - name: Configure answer to central server initial install
   ansible.builtin.debconf:
     name: xroad-common
@@ -34,3 +42,10 @@
   retries: 4
   environment:
     DEBIAN_FRONTEND: noninteractive
+
+- name: Configure xroad pin autologin
+  ansible.builtin.copy:
+    dest: /etc/xroad/autologin
+    mode: "0640"
+    content: "{{ xroad_autologin | join('\n') }}"
+  no_log: true
