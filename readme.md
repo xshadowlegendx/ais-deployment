@@ -1,6 +1,6 @@
 
 ### central server
-- configure signing keys
+- configure internal/external signing keys
 - configure trust service
 - configure initial member class
 - configure management service (require one security server for this)
