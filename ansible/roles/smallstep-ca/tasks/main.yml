@@ -306,7 +306,7 @@
       dest: /opt/step-ca/templates/x509/intermediate-ca.tpl
     - tmpl: ocsp.tpl.j2
       dest: /opt/step-ca/templates/x509/ocsp.tpl
-    - tmpl: ocsp.tpl.j2
+    - tmpl: xroad.tpl.j2
       dest: /opt/step-ca/templates/x509/xroad.tpl
   notify: Restart step-ca
 
