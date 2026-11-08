@@ -36,6 +36,8 @@
       PublishPort=8888:8080
       Volume=/etc/xroad:/etc/xroad:rw,Z
       Volume=/var/lib/xroad/data:/var/lib/xroad:rw,Z
+
+      Volume=/root/.step/certs/root_ca.crt:/usr/local/share/ca-certificates/ais-root-ca.crt:ro,Z
       {% for token in xroad_autologin %}
       # Environment=XROAD_TOKEN_{{ loop.index0 }}_PIN={{ token }}
       {% endfor %}
@@ -47,6 +49,7 @@
 
       [Service]
       Restart=on-failure
+      ExecStartPost=/usr/bin/podman exec xroad-security-server update-ca-certificates --fresh
 
 - name: Ensure xroad security server enabled and started
   ansible.builtin.systemd_service:
