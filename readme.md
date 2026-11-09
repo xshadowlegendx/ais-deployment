@@ -11,7 +11,7 @@
 - configure xroad user (adduser with roles)
 - configure signing keys and certs via acme
     - generate keys and issue certs
-    - register and approve cert on central server
+    - register, activate and approve cert on central server
 - create and enable the management service
     - create the service and match the subsystem name of the configured on central server
     - approve the client on central server
@@ -24,7 +24,7 @@
 - configure xroad user (adduser with roles)
 - configure signing keys and certs via acme
     - generate keys and issue certs
-    - register and approve cert on central server
+    - register, activate and approve cert on central server
 - create and enable any services (provider)
     - create and configure any services
     - approve the security server membership on central server

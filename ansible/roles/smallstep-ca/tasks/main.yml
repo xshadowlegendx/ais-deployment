@@ -398,6 +398,10 @@
         --template /opt/step-ca/templates/x509/intermediate-ca.tpl\
         /opt/step-ca/tmp/int-csr.pem /opt/step-ca/certs/root-ca.crt /opt/step-ca/root-pkey > /opt/step-ca/certs/intermediate-ca.crt
 
+      openssl x509 -in /opt/step-ca/certs/intermediate-ca.crt -outform DER -out /opt/step-ca/certs/intermediate-ca.der
+
+      curl -XPOST http://localhost:8090/cert/$(step certificate inspect /opt/step-ca/certs/intermediate-ca.crt --format json | jq -r .serial_number) --data-binary @/opt/step-ca/certs/intermediate-ca.der
+
 - name: Generate initial intermediate ca
   ansible.builtin.command: /opt/step-ca/int-ca-gen.sh
   args:
