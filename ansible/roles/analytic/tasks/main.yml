@@ -83,7 +83,6 @@
         <trace_log replace="1">
           <database>system</database>
           <table>trace_log</table>
-          <partition_by>toYYYYMM(event_date)</partition_by>
           <flush_interval_milliseconds>7500</flush_interval_milliseconds>
           <max_size_rows>1048576</max_size_rows>
           <reserved_size_rows>8192</reserved_size_rows>
@@ -96,7 +95,6 @@
         <text_log replace="1">
           <database>system</database>
           <table>text_log</table>
-          <partition_by>toYYYYMM(event_date)</partition_by>
           <flush_interval_milliseconds>7500</flush_interval_milliseconds>
           <max_size_rows>1048576</max_size_rows>
           <reserved_size_rows>8192</reserved_size_rows>
@@ -107,7 +105,6 @@
         <metric_log replace="1">
           <database>system</database>
           <table>metric_log</table>
-          <partition_by>toYYYYMM(event_date)</partition_by>
           <flush_interval_milliseconds>7500</flush_interval_milliseconds>
           <collect_interval_milliseconds>1000</collect_interval_milliseconds>
           <max_size_rows>1048576</max_size_rows>
