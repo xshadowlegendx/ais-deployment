@@ -147,7 +147,7 @@
       WantedBy=default.target
 
       [Container]
-      Image=ghcr.io/ysall123/agriculture-superset:latest
+      Image=ghcr.io/ysall123/agriculture-superset@sha256:8f218e8ea9cf3eef7704b4675286b8dcafb6596563efa160d9d11535864ac437
       ContainerName=superset
       Network=superset.network
       PublishPort=127.0.0.1:8088:8088
