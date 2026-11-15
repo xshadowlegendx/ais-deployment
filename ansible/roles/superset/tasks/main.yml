@@ -147,13 +147,13 @@
       WantedBy=default.target
 
       [Container]
-      Image=ghcr.io/ysall123/agriculture-superset@sha256:8f218e8ea9cf3eef7704b4675286b8dcafb6596563efa160d9d11535864ac437
+      Image=ghcr.io/ysall123/agriculture-superset@sha256:c78b7fa789dc847ba1c9bb1d792917f6b7f73daff3088fee30690eac03b439b2
       ContainerName=superset
       Network=superset.network
       PublishPort=127.0.0.1:8088:8088
       Volume=/etc/superset/superset_config.py:/superset_config.py:U,ro,Z
       Volume=/var/lib/superset/data:/app/superset_home:U,rw,Z
-      Exec=bash -c 'superset db upgrade && superset init && /app/docker/entrypoints/run-server.sh'
+      Exec=bash -c '/app/docker/docker-init.sh && /app/docker/entrypoints/run-server.sh'
       Environment=DATABASE_DB=superset
       Environment=REDIS_HOST=superset-valkey
       Environment=PGHOST=superset-pg
@@ -172,6 +172,11 @@
       Environment=KEYCLOAK_JWKS_URI={{ analytic_superset_oidc_jwks_uri }}
       Environment=KEYCLOAK_FORCE_PROMPT_LOGIN=true
       Environment=AUTH_USER_REGISTRATION_ROLE=Gamma
+      Environment=SUPERSET_IMPORT_DATABASE_PASSWORD={{ analytic_superset_clickhouse_password }}
+      Environment=SUPERSET_IMPORT_DASHBOARDS_PATH=
+      Environment=SUPERSET_IMPORT_DASHBOARDS_DIR=/app/docker/imports
+      Environment=SUPERSET_IMPORT_DASHBOARDS_USERNAME=admin
+      Environment=SUPERSET_IMPORT_DASHBOARDS_STRICT=false
 
       [Service]
       Restart=on-failure
