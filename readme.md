@@ -35,3 +35,7 @@ headers:
     x-road-client: [instance]/[classX]/[memberX]/[subSystemX]
 
 url: [proto]//:[securityServer:[port]]/r1/[instance]/[classY]/[memberY]/[subSystemY]/[service]/*
+
+### keycloak superset role to create
+- admin
+- gamma
